@@ -11,9 +11,8 @@ initialWordList =
 
 
 type alias Model =
-    { currWords : List String
-    , currWord : String
-    , end : Bool
+    { nextWords : List String
+    , currWord : Maybe String
     }
 
 
@@ -21,15 +20,13 @@ init : Model
 init =
     case initialWordList of
         x :: xs ->
-            { currWords = xs
-            , currWord = x
-            , end = False
+            { nextWords = xs
+            , currWord = Just x
             }
 
-        _ ->
-            { currWords = []
-            , currWord = ""
-            , end = True
+        [] ->
+            { nextWords = []
+            , currWord = Nothing
             }
 
 
@@ -41,21 +38,21 @@ update : Msg -> Model -> Model
 update msg model =
     case msg of
         Nextword ->
-            case model.currWords of
+            case model.nextWords of
                 x :: xs ->
-                    { model | currWord = x, currWords = xs }
+                    { model | currWord = Just x, nextWords = xs }
 
-                _ ->
-                    { model | end = True }
+                [] ->
+                    { model | currWord = Nothing }
 
 
-playingView : Model -> List (Html.Html Msg)
-playingView m =
+playingView : String -> List (Html.Html Msg)
+playingView cW =
     [ div []
         [ button [ onClick Nextword ] [ text "next" ]
         ]
     , div []
-        [ text m.currWord
+        [ text cW
         ]
     ]
 
@@ -63,11 +60,12 @@ playingView m =
 view : Model -> Html.Html Msg
 view m =
     div [] <|
-        if m.end then
-            [ text "end" ]
+        case m.currWord of
+            Just w ->
+                playingView w
 
-        else
-            playingView m
+            Nothing ->
+                [ text "end" ]
 
 
 main : Program () Model Msg
