@@ -10,7 +10,7 @@ This project uses Elm because of :
 
 If you have [nix](https://nixos.org/) you can simply run this from the project's root
 ```
-nix-shell dev.nix
+nix-shell
 ```
 
 It will open a shell with everything needed, both for running and for working on the project.
