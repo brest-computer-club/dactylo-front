@@ -1,0 +1,24 @@
+version: 2.1
+
+workflows:
+  version: 2
+  workflow:
+    jobs:
+      - build
+
+jobs:
+  build:
+    docker:
+      - image: nixos/nix:2.3.6
+    steps:
+      - checkout
+      - run:
+          name: Add internal deps 
+          command: |
+            nix-env -iA nixpkgs.git
+      - run: 
+          name: Lint elm code
+          command: nix-shell --run "elm-format --validate ." 
+      - run: 
+          name: Build
+          command: nix-shell --run "elm make src/Main.elm" 
