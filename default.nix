@@ -9,5 +9,6 @@ let
 in 
 pkgs.mkShell {
   buildInputs = with pkgs; 
-    altPkgs.bundles.elm pkgs;
+    altPkgs.bundles.elm pkgs ++
+    [ pkgs.nodePackages.uglify-js];
 }

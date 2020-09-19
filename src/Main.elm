@@ -35,7 +35,7 @@ type TypingResult
 
 initWords : List String
 initWords =
-    [ "bonjour", "elodie" ]
+    [ "The only thing", "elodie" ]
 
 
 countToNext : Int

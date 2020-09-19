@@ -21,4 +21,4 @@ jobs:
           command: nix-shell --run "elm-format --validate ." 
       - run: 
           name: Build
-          command: nix-shell --run "elm make src/Main.elm" 
+          command: nix-shell --run "make build" 
