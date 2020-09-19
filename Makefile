@@ -7,4 +7,7 @@ build:
 	gzip -f ./public/elm.min.js 
 
 serve:
-	sudo docker run --rm -p 8000:8000 -v $(pwd)/public:/var/www/ -d busybox httpd -f -p 8000 -h /var/www 
+	sudo docker run --rm -p 8000:8000 -v $(shell pwd)/public/:/var/www/:ro -d --name=dactylo busybox httpd -f -p 8000 -h /var/www 
+
+stop:
+	sudo docker stop dactylo
