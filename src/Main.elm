@@ -4,10 +4,10 @@ import Browser
 import Browser.Events exposing (onKeyPress)
 import Char exposing (Char)
 import Helpers
-import Html exposing (button, div, text)
+import Html exposing (Html, button, div, text)
 import Html.Events exposing (onClick)
-import Json.Decode
-import String exposing (cons)
+import Json.Decode as JsonD
+import String
 import Task
 import Time
 
@@ -19,7 +19,7 @@ type alias Model =
     , startTime : Time.Posix
     , lastWordSpeed : Int
     , typingResult : TypingResult
-    , goal : Int
+    , wpmGoal : Int
     , successiveAchieved : Int
     , newWord : Bool
     }
@@ -30,6 +30,7 @@ type TypingResult
     | TypingMistake
     | TooSlow
     | NotStarted
+    | InProgress
 
 
 initWords : List String
@@ -49,34 +50,25 @@ initGoal =
 
 init : ( Model, Cmd Msg )
 init =
+    let
+        empty =
+            { nextWords = []
+            , currWord = Nothing
+            , typingBuf = ""
+            , startTime = Time.millisToPosix 0
+            , lastWordSpeed = 0
+            , typingResult = NotStarted
+            , wpmGoal = initGoal
+            , successiveAchieved = 0
+            , newWord = True
+            }
+    in
     case initWords of
         x :: xs ->
-            ( { nextWords = xs
-              , currWord = Just x
-              , typingBuf = ""
-              , startTime = Time.millisToPosix 0
-              , lastWordSpeed = 0
-              , typingResult = NotStarted
-              , goal = initGoal
-              , successiveAchieved = 0
-              , newWord = True
-              }
-            , Cmd.none
-            )
+            ( { empty | nextWords = xs, currWord = Just x }, Cmd.none )
 
         [] ->
-            ( { nextWords = []
-              , currWord = Nothing
-              , typingBuf = ""
-              , startTime = Time.millisToPosix 0
-              , lastWordSpeed = 0
-              , typingResult = NotStarted
-              , goal = initGoal
-              , successiveAchieved = 0
-              , newWord = True
-              }
-            , Cmd.none
-            )
+            ( empty, Cmd.none )
 
 
 type Msg
@@ -102,7 +94,7 @@ update msg m =
                     ( { m | currWord = Nothing }, Cmd.none )
 
         StartTimer t ->
-            ( { m | startTime = t, typingResult = NotStarted }, Cmd.none )
+            ( { m | startTime = t, typingResult = InProgress }, Cmd.none )
 
         StopTimer t ->
             let
@@ -118,7 +110,7 @@ update msg m =
                     case m.currWord of
                         Just w ->
                             if Helpers.checkWord w m.typingBuf then
-                                if lastWordSpeed_ >= m.goal then
+                                if lastWordSpeed_ >= m.wpmGoal then
                                     OK
 
                                 else
@@ -166,7 +158,7 @@ update msg m =
                 Just char ->
                     let
                         typingBuf_ =
-                            cons char m.typingBuf
+                            String.cons char m.typingBuf
 
                         ( isWordBeginning, isWordEnd ) =
                             case m.currWord of
@@ -192,9 +184,9 @@ update msg m =
                     ( m, Cmd.none )
 
 
-keyDecoder : Json.Decode.Decoder Msg
+keyDecoder : JsonD.Decoder Msg
 keyDecoder =
-    Json.Decode.map toKey (Json.Decode.field "key" Json.Decode.string)
+    JsonD.map toKey (JsonD.field "key" JsonD.string)
 
 
 toKey : String -> Msg
@@ -207,7 +199,7 @@ toKey string =
             KeyPressed Nothing
 
 
-playingView : String -> Int -> List (Html.Html Msg)
+playingView : String -> Int -> List (Html Msg)
 playingView cW successiveAchieved =
     [ div []
         [ button [ onClick Nextword ] [ text "next" ]
@@ -215,38 +207,34 @@ playingView cW successiveAchieved =
         , text <| String.fromInt successiveAchieved
         ]
     , div []
-        [ text cW
+        [ Html.h1 [] [ text cW ]
         ]
     ]
 
 
-statusBar : String -> TypingResult -> Bool -> Html.Html Msg
-statusBar tb tR newW =
+statusBar : TypingResult -> Html a
+statusBar tR =
     div []
         [ text <|
-            if tb /= "" then
-                "**typing**"
+            case tR of
+                InProgress ->
+                    "== typing =="
 
-            else if not newW then
-                case tR of
-                    OK ->
-                        "ok"
+                OK ->
+                    "ok"
 
-                    TooSlow ->
-                        "too slow"
+                TooSlow ->
+                    "too slow"
 
-                    TypingMistake ->
-                        "you made a typo"
+                TypingMistake ->
+                    "you made a typo"
 
-                    NotStarted ->
-                        "ready to type?"
-
-            else
-                ""
+                NotStarted ->
+                    "start a new game ?"
         ]
 
 
-view : Model -> Html.Html Msg
+view : Model -> Html Msg
 view m =
     div [] <|
         case m.currWord of
@@ -254,12 +242,8 @@ view m =
                 playingView w m.successiveAchieved
                     ++ [ div [] [ text "===" ]
                        , div [] [ text <| (String.fromInt <| m.lastWordSpeed) ++ " wpm" ]
-                       , div []
-                            [ text "===" ]
-                       , statusBar
-                            m.typingBuf
-                            m.typingResult
-                            m.newWord
+                       , div [] [ text "===" ]
+                       , statusBar m.typingResult
                        ]
 
             Nothing ->
