@@ -6,7 +6,8 @@ import Char exposing (Char)
 import Helpers
 import Html exposing (Html, button, div, text)
 import Html.Events exposing (onClick)
-import Json.Decode as JsonD
+import Http
+import Json.Decode as D
 import String
 import Task
 import Time
@@ -33,9 +34,12 @@ type TypingResult
     | InProgress
 
 
-initWords : List String
-initWords =
-    [ "The only thing", "elodie" ]
+getWords : Cmd Msg
+getWords =
+    Http.get
+        { url = "https://raw.githubusercontent.com/dariusk/corpora/master/data/words/common.json"
+        , expect = Http.expectJson GotWords (D.field "commonWords" (D.list D.string))
+        }
 
 
 countToNext : Int
@@ -50,25 +54,18 @@ initGoal =
 
 init : ( Model, Cmd Msg )
 init =
-    let
-        empty =
-            { nextWords = []
-            , currWord = Nothing
-            , typingBuf = ""
-            , startTime = Time.millisToPosix 0
-            , lastWordSpeed = 0
-            , typingResult = NotStarted
-            , wpmGoal = initGoal
-            , successiveAchieved = 0
-            , newWord = True
-            }
-    in
-    case initWords of
-        x :: xs ->
-            ( { empty | nextWords = xs, currWord = Just x }, Cmd.none )
-
-        [] ->
-            ( empty, Cmd.none )
+    ( { nextWords = []
+      , currWord = Nothing
+      , typingBuf = ""
+      , startTime = Time.millisToPosix 0
+      , lastWordSpeed = 0
+      , typingResult = NotStarted
+      , wpmGoal = initGoal
+      , successiveAchieved = 0
+      , newWord = True
+      }
+    , getWords
+    )
 
 
 type Msg
@@ -77,11 +74,24 @@ type Msg
     | StartTimer Time.Posix
     | StopTimer Time.Posix
     | Reset
+    | GotWords (Result Http.Error (List String))
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg m =
     case msg of
+        GotWords resp ->
+            case resp of
+                Ok list ->
+                    let
+                        ( c, l ) =
+                            Helpers.getHeadTail <| List.filter (\w -> String.length w > 1) list
+                    in
+                    ( { m | currWord = c, nextWords = l }, Cmd.none )
+
+                Err _ ->
+                    ( { m | currWord = Nothing, nextWords = [] }, Cmd.none )
+
         Reset ->
             ( { m | typingBuf = "", successiveAchieved = 0 }, Cmd.none )
 
@@ -184,9 +194,9 @@ update msg m =
                     ( m, Cmd.none )
 
 
-keyDecoder : JsonD.Decoder Msg
+keyDecoder : D.Decoder Msg
 keyDecoder =
-    JsonD.map toKey (JsonD.field "key" JsonD.string)
+    D.map toKey (D.field "key" D.string)
 
 
 toKey : String -> Msg
