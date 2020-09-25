@@ -9,13 +9,15 @@ import Html.Attributes as HA
 import Html.Events as HE
 import Http
 import Json.Decode as D
+import Random
+import Random.List as RL
 import String
 import Task
 import Time
 
 
 type alias Model =
-    { nextWords : List String
+    { words : List String
     , currWord : Maybe String
     , typingBuf : String
     , startTime : Time.Posix
@@ -23,7 +25,6 @@ type alias Model =
     , typingResult : TypingResult
     , wpmGoal : Int
     , successiveAchieved : Int
-    , newWord : Bool
     }
 
 
@@ -39,7 +40,7 @@ getWords : Cmd Msg
 getWords =
     Http.get
         { url = "https://raw.githubusercontent.com/dariusk/corpora/master/data/words/common.json"
-        , expect = Http.expectJson GotWords (D.field "commonWords" (D.list D.string))
+        , expect = Http.expectJson GetWordListResp (D.field "commonWords" (D.list D.string))
         }
 
 
@@ -55,7 +56,7 @@ initGoal =
 
 init : ( Model, Cmd Msg )
 init =
-    ( { nextWords = []
+    ( { words = []
       , currWord = Nothing
       , typingBuf = ""
       , startTime = Time.millisToPosix 0
@@ -63,7 +64,6 @@ init =
       , typingResult = NotStarted
       , wpmGoal = initGoal
       , successiveAchieved = 0
-      , newWord = True
       }
     , getWords
     )
@@ -71,38 +71,38 @@ init =
 
 type Msg
     = Nextword
+    | GotNextword ( Maybe String, List String )
     | KeyPressed (Maybe Char)
     | StartTimer Time.Posix
     | StopTimer Time.Posix
     | Reset
-    | GotWords (Result Http.Error (List String))
+    | GetWordListResp (Result Http.Error (List String))
+
+
+askNewWord : List String -> Cmd Msg
+askNewWord l =
+    Random.generate GotNextword <| RL.choose l
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg m =
     case msg of
-        GotWords resp ->
+        GetWordListResp resp ->
             case resp of
                 Ok list ->
-                    let
-                        ( c, l ) =
-                            Helpers.getHeadTail <| List.filter (\w -> String.length w > 1) list
-                    in
-                    ( { m | currWord = c, nextWords = l }, Cmd.none )
+                    ( { m | words = List.filter (\w -> String.length w > 1) list }, askNewWord list )
 
                 Err _ ->
-                    ( { m | currWord = Nothing, nextWords = [] }, Cmd.none )
+                    ( { m | currWord = Nothing, words = [] }, Cmd.none )
 
         Reset ->
             ( { m | typingBuf = "", successiveAchieved = 0, typingResult = NotStarted }, Cmd.none )
 
         Nextword ->
-            case m.nextWords of
-                x :: xs ->
-                    ( { m | currWord = Just x, nextWords = xs, typingBuf = "", successiveAchieved = 0 }, Cmd.none )
+            ( m, askNewWord m.words )
 
-                [] ->
-                    ( { m | currWord = Nothing }, Cmd.none )
+        GotNextword ( w, _ ) ->
+            ( { m | currWord = w, typingBuf = "", successiveAchieved = 0, typingResult = NotStarted }, Cmd.none )
 
         StartTimer t ->
             ( { m | startTime = t, typingResult = InProgress }, Cmd.none )
@@ -133,35 +133,27 @@ update msg m =
                         Nothing ->
                             NotStarted
 
-                ( currWord_, nextWords_, newWord_ ) =
-                    if typingResult_ == OK && m.successiveAchieved + 1 >= countToNext then
-                        case m.nextWords of
-                            x :: xs ->
-                                ( Just x, xs, True )
-
-                            [] ->
-                                ( Nothing, [], False )
-
-                    else
-                        ( m.currWord, m.nextWords, False )
-
                 successiveAchieved_ =
-                    if typingResult_ == OK && not newWord_ then
+                    if typingResult_ == OK then
                         m.successiveAchieved + 1
 
                     else
                         0
+
+                cmd =
+                    if typingResult_ == OK && m.successiveAchieved + 1 >= countToNext then
+                        askNewWord m.words
+
+                    else
+                        Cmd.none
             in
             ( { m
                 | lastWordSpeed = lastWordSpeed_
                 , successiveAchieved = successiveAchieved_
-                , currWord = currWord_
-                , nextWords = nextWords_
-                , newWord = newWord_
                 , typingBuf = ""
                 , typingResult = typingResult_
               }
-            , Cmd.none
+            , cmd
             )
 
         KeyPressed k ->
