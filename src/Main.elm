@@ -1,11 +1,11 @@
 module Main exposing (main)
 
 import Browser
-import Browser.Events exposing (onKeyPress)
+import Browser.Events as BE
 import Char exposing (Char)
 import Helpers
 import Html exposing (Html, button, div, text)
-import Html.Events exposing (onClick)
+import Html.Events as HE
 import Http
 import Json.Decode as D
 import String
@@ -93,12 +93,12 @@ update msg m =
                     ( { m | currWord = Nothing, nextWords = [] }, Cmd.none )
 
         Reset ->
-            ( { m | typingBuf = "", successiveAchieved = 0 }, Cmd.none )
+            ( { m | typingBuf = "", successiveAchieved = 0, typingResult = NotStarted }, Cmd.none )
 
         Nextword ->
             case m.nextWords of
                 x :: xs ->
-                    ( { m | currWord = Just x, nextWords = xs, typingBuf = "" }, Cmd.none )
+                    ( { m | currWord = Just x, nextWords = xs, typingBuf = "", successiveAchieved = 0 }, Cmd.none )
 
                 [] ->
                     ( { m | currWord = Nothing }, Cmd.none )
@@ -206,14 +206,17 @@ toKey string =
             KeyPressed (Just char)
 
         _ ->
-            KeyPressed Nothing
+            if string == "Escape" then
+                Reset
+
+            else
+                KeyPressed Nothing
 
 
 playingView : String -> Int -> List (Html Msg)
 playingView cW successiveAchieved =
     [ div []
-        [ button [ onClick Nextword ] [ text "next" ]
-        , button [ onClick Reset ] [ text "reset" ]
+        [ button [ HE.onClick Nextword ] [ text "next" ]
         , text <| String.fromInt successiveAchieved
         ]
     , div []
@@ -228,7 +231,7 @@ statusBar tR =
         [ text <|
             case tR of
                 InProgress ->
-                    "== typing =="
+                    ""
 
                 OK ->
                     "ok"
@@ -240,8 +243,17 @@ statusBar tR =
                     "you made a typo"
 
                 NotStarted ->
-                    "start a new game ?"
+                    "ready ?"
         ]
+
+
+typingProgress : Int -> Int -> String
+typingProgress typed goal =
+    let
+        remaining =
+            goal - typed
+    in
+    String.repeat typed "*" ++ String.repeat remaining "_"
 
 
 view : Model -> Html Msg
@@ -253,7 +265,10 @@ view m =
                     ++ [ div [] [ text "===" ]
                        , div [] [ text <| (String.fromInt <| m.lastWordSpeed) ++ " wpm" ]
                        , div [] [ text "===" ]
+                       , div [] [ text <| typingProgress (String.length m.typingBuf) (String.length w) ]
+                       , div [] [ text "===" ]
                        , statusBar m.typingResult
+                       , div [] [ text "use the Esc key to reset your current word" ]
                        ]
 
             Nothing ->
@@ -262,7 +277,7 @@ view m =
 
 subscriptions : Model -> Sub Msg
 subscriptions _ =
-    onKeyPress keyDecoder
+    BE.onKeyDown keyDecoder
 
 
 main : Program () Model Msg
