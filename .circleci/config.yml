@@ -52,4 +52,4 @@ jobs:
             - "9c:c3:49:76:0a:02:af:9f:65:1b:d3:f8:10:08:4f:eb"
       - run:
           name: Deploy docs to gh-pages branch
-          command: gh-pages --message "[skip ci] Publish" -d ./public
+          command: gh-pages --message "[skip ci] Publish" -d "public"
