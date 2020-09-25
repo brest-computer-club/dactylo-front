@@ -5,6 +5,13 @@ workflows:
   workflow:
     jobs:
       - build
+      - deploy:
+          requires:
+            - build
+          filters:
+            branches:
+              only: /release.*/
+
 
 jobs:
   build:
@@ -22,3 +29,27 @@ jobs:
       - run: 
           name: Build
           command: nix-shell --run "make build" 
+      - persist_to_workspace:
+          root: ./public
+          paths: 
+            - index.html
+            - elm.min.js
+  deploy:
+    docker:
+      - image: node:8.10.0
+    steps:
+      - checkout
+      - attach_workspace:
+          at: ./public 
+      - run:
+          name: Install and configure dependencies
+          command: |
+            npm install -g --silent gh-pages@3.1.0
+            git config user.email "ci@brestcomputer.club"
+            git config user.name "ci"
+      - add_ssh_keys:
+          fingerprints:
+            - "9c:c3:49:76:0a:02:af:9f:65:1b:d3:f8:10:08:4f:eb"
+      - run:
+          name: Deploy docs to gh-pages branch
+          command: gh-pages --message "[skip ci] Publish" -d ./public
