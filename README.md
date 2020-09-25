@@ -20,6 +20,6 @@ You can then use any editor you want supporting the [elm-language-server](https:
 Run 
 
 ```
-elm-live ./src/Main.elm
+make serve
 ```
 

@@ -5,6 +5,7 @@ import Browser.Events as BE
 import Char exposing (Char)
 import Helpers
 import Html exposing (Html, button, div, text)
+import Html.Attributes as HA
 import Html.Events as HE
 import Http
 import Json.Decode as D
@@ -213,14 +214,13 @@ toKey string =
                 KeyPressed Nothing
 
 
-playingView : String -> Int -> List (Html Msg)
-playingView cW successiveAchieved =
-    [ div []
-        [ button [ HE.onClick Nextword ] [ text "next" ]
-        , text <| String.fromInt successiveAchieved
-        ]
-    , div []
-        [ Html.h1 [] [ text cW ]
+playingView : String -> String -> List (Html Msg)
+playingView tB cW =
+    [ div [ HA.class "row", HA.style "text-align" "center" ]
+        [ div [ HA.class "column" ]
+            [ Html.h1 [] [ text cW ]
+            , Html.h1 [] [ text <| typingProgress (String.length tB) (String.length cW) ]
+            ]
         ]
     ]
 
@@ -231,7 +231,7 @@ statusBar tR =
         [ text <|
             case tR of
                 InProgress ->
-                    ""
+                    "..."
 
                 OK ->
                     "ok"
@@ -258,17 +258,25 @@ typingProgress typed goal =
 
 view : Model -> Html Msg
 view m =
-    div [] <|
+    div [ HA.class "container", HA.style "margin-top" "15%" ] <|
         case m.currWord of
             Just w ->
-                playingView w m.successiveAchieved
-                    ++ [ div [] [ text "===" ]
-                       , div [] [ text <| (String.fromInt <| m.lastWordSpeed) ++ " wpm" ]
-                       , div [] [ text "===" ]
-                       , div [] [ text <| typingProgress (String.length m.typingBuf) (String.length w) ]
-                       , div [] [ text "===" ]
-                       , statusBar m.typingResult
-                       , div [] [ text "use the Esc key to reset your current word" ]
+                playingView m.typingBuf w
+                    ++ [ div [ HA.class "row", HA.style "margin-top" "30px" ]
+                            [ div [ HA.class "column column-50 column-offset-25" ]
+                                [ div [] [ text <| "last speed : " ++ (String.fromInt <| m.lastWordSpeed) ++ " wpm" ]
+                                , div [] [ text <| "achieved before next word : " ++ String.fromInt m.successiveAchieved ++ " / 3" ]
+                                , statusBar m.typingResult
+                                ]
+                            ]
+                       , div [ HA.class "row", HA.style "margin-top" "30px" ]
+                            [ div [ HA.class "column", HA.style "text-align" "center" ]
+                                [ button
+                                    [ HE.onClick Nextword, HA.class "button button-outline" ]
+                                    [ text "skip" ]
+                                ]
+                            ]
+                       , div [ HA.style "position" "fixed", HA.style "bottom" "0" ] [ text "Tip: use the Esc key to reset your current word" ]
                        ]
 
             Nothing ->
