@@ -49,11 +49,6 @@ countToNext =
     3
 
 
-initGoal : Int
-initGoal =
-    90
-
-
 init : ( Model, Cmd Msg )
 init =
     ( { words = []
@@ -62,7 +57,7 @@ init =
       , startTime = Time.millisToPosix 0
       , lastWordSpeed = 0
       , typingResult = NotStarted
-      , wpmGoal = initGoal
+      , wpmGoal = 90
       , successiveAchieved = 0
       }
     , getWords
@@ -109,29 +104,25 @@ update msg m =
 
         StopTimer t ->
             let
-                lastWordSpeed_ =
+                ( typingResult_, lastWordSpeed_ ) =
                     case m.currWord of
                         Just w ->
-                            Helpers.wpm w (Time.posixToMillis t - Time.posixToMillis m.startTime)
-
-                        Nothing ->
-                            0
-
-                typingResult_ =
-                    case m.currWord of
-                        Just w ->
+                            let
+                                speed =
+                                    Helpers.wpm w (Time.posixToMillis t - Time.posixToMillis m.startTime)
+                            in
                             if Helpers.checkWord w m.typingBuf then
-                                if lastWordSpeed_ >= m.wpmGoal then
-                                    OK
+                                if speed >= m.wpmGoal then
+                                    ( OK, speed )
 
                                 else
-                                    TooSlow
+                                    ( TooSlow, speed )
 
                             else
-                                TypingMistake
+                                ( TypingMistake, 0 )
 
                         Nothing ->
-                            NotStarted
+                            ( NotStarted, 0 )
 
                 successiveAchieved_ =
                     if typingResult_ == OK then
@@ -256,7 +247,10 @@ view m =
                 playingView m.typingBuf w
                     ++ [ div [ HA.class "row", HA.style "margin-top" "30px" ]
                             [ div [ HA.class "column column-50 column-offset-25" ]
-                                [ div [] [ text <| "last speed : " ++ (String.fromInt <| m.lastWordSpeed) ++ " wpm" ]
+                                [ div []
+                                    [ text <| "speed goal is : " ++ String.fromInt m.wpmGoal
+                                    , text <| ", last speed : " ++ (String.fromInt <| m.lastWordSpeed) ++ " wpm"
+                                    ]
                                 , div [] [ text <| "achieved before next word : " ++ String.fromInt m.successiveAchieved ++ " / 3" ]
                                 , statusBar m.typingResult
                                 ]
