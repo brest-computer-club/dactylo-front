@@ -1,4 +1,4 @@
-module Helpers exposing (checkWord, getHeadTail, wpm)
+module Helpers exposing (checkWord, wpm)
 
 
 checkWord : String -> String -> Bool
@@ -15,13 +15,3 @@ wpm w dur =
 
     else
         0
-
-
-getHeadTail : List String -> ( Maybe String, List String )
-getHeadTail l =
-    case l of
-        x :: xs ->
-            ( Just x, xs )
-
-        [] ->
-            ( Nothing, [] )

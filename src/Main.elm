@@ -29,11 +29,11 @@ type alias Model =
 
 
 type TypingResult
-    = OK
+    = NotStarted
+    | InProgress
+    | OK
     | TypingMistake
     | TooSlow
-    | NotStarted
-    | InProgress
 
 
 getWords : Cmd Msg
@@ -52,7 +52,7 @@ countToNext =
 init : ( Model, Cmd Msg )
 init =
     ( { words = []
-      , currWord = Nothing
+      , currWord = Just "loading..."
       , typingBuf = ""
       , startTime = Time.millisToPosix 0
       , lastWordSpeed = 0
@@ -232,23 +232,19 @@ statusBar tR =
 
 typingProgress : Int -> Int -> String
 typingProgress typed goal =
-    let
-        remaining =
-            goal - typed
-    in
-    String.repeat typed "*" ++ String.repeat remaining "_"
+    String.repeat typed "*" ++ String.repeat (goal - typed) "_"
 
 
 view : Model -> Html Msg
 view m =
-    div [ HA.class "container", HA.style "margin-top" "15%" ] <|
+    div [ HA.class "container", HA.style "margin-top" "25%" ] <|
         case m.currWord of
             Just w ->
                 playingView m.typingBuf w
                     ++ [ div [ HA.class "row", HA.style "margin-top" "30px" ]
                             [ div [ HA.class "column column-50 column-offset-25" ]
                                 [ div []
-                                    [ text <| "speed goal is : " ++ String.fromInt m.wpmGoal
+                                    [ text <| "speed goal : " ++ String.fromInt m.wpmGoal
                                     , text <| ", last speed : " ++ (String.fromInt <| m.lastWordSpeed) ++ " wpm"
                                     ]
                                 , div [] [ text <| "achieved before next word : " ++ String.fromInt m.successiveAchieved ++ " / 3" ]
@@ -266,7 +262,7 @@ view m =
                        ]
 
             Nothing ->
-                [ text "end" ]
+                [ text "" ]
 
 
 subscriptions : Model -> Sub Msg
