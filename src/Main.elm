@@ -36,17 +36,15 @@ type TypingResult
     | TooSlow
 
 
-getWords : Cmd Msg
-getWords =
-    Http.get
-        { url = "https://raw.githubusercontent.com/dariusk/corpora/master/data/words/common.json"
-        , expect = Http.expectJson GetWordListResp (D.field "commonWords" (D.list D.string))
-        }
-
-
-countToNext : Int
-countToNext =
-    3
+type Msg
+    = ChangeWord
+    | SetGoal Int
+    | GotNextword ( Maybe String, List String )
+    | KeyPressed (Maybe Char)
+    | StartTimer Time.Posix
+    | StopTimer Time.Posix
+    | Reset
+    | GetWordListResp (Result Http.Error (List String))
 
 
 init : ( Model, Cmd Msg )
@@ -64,14 +62,17 @@ init =
     )
 
 
-type Msg
-    = Nextword
-    | GotNextword ( Maybe String, List String )
-    | KeyPressed (Maybe Char)
-    | StartTimer Time.Posix
-    | StopTimer Time.Posix
-    | Reset
-    | GetWordListResp (Result Http.Error (List String))
+countToNext : Int
+countToNext =
+    3
+
+
+getWords : Cmd Msg
+getWords =
+    Http.get
+        { url = "https://raw.githubusercontent.com/dariusk/corpora/master/data/words/common.json"
+        , expect = Http.expectJson GetWordListResp (D.field "commonWords" (D.list D.string))
+        }
 
 
 askNewWord : List String -> Cmd Msg
@@ -82,6 +83,13 @@ askNewWord l =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg m =
     case msg of
+        SetGoal speed ->
+            if speed < 10 then
+                ( m, Cmd.none )
+
+            else
+                ( { m | wpmGoal = speed }, Cmd.none )
+
         GetWordListResp resp ->
             case resp of
                 Ok list ->
@@ -93,7 +101,7 @@ update msg m =
         Reset ->
             ( { m | typingBuf = "", successiveAchieved = 0, typingResult = NotStarted }, Cmd.none )
 
-        Nextword ->
+        ChangeWord ->
             ( m, askNewWord m.words )
 
         GotNextword ( w, _ ) ->
@@ -132,7 +140,7 @@ update msg m =
                         0
 
                 cmd =
-                    if typingResult_ == OK && m.successiveAchieved + 1 >= countToNext then
+                    if typingResult_ == OK && successiveAchieved_ >= countToNext then
                         askNewWord m.words
 
                     else
@@ -237,11 +245,11 @@ typingProgress typed goal =
 
 view : Model -> Html Msg
 view m =
-    div [ HA.class "container", HA.style "margin-top" "25%" ] <|
+    div [ HA.class "container" ] <|
         case m.currWord of
             Just w ->
                 playingView m.typingBuf w
-                    ++ [ div [ HA.class "row", HA.style "margin-top" "30px" ]
+                    ++ [ div [ HA.class "row" ]
                             [ div [ HA.class "column column-50 column-offset-25" ]
                                 [ div []
                                     [ text <| "speed goal : " ++ String.fromInt m.wpmGoal
@@ -252,13 +260,15 @@ view m =
                                 ]
                             ]
                        , div [ HA.class "row", HA.style "margin-top" "30px" ]
-                            [ div [ HA.class "column", HA.style "text-align" "center" ]
-                                [ button
-                                    [ HE.onClick Nextword, HA.class "button button-outline" ]
-                                    [ text "skip" ]
-                                ]
+                            [ div [ HA.class "column" ] []
+                            , div [ HA.class "column" ] [ button [ HA.class "column", HE.onClick (SetGoal <| m.wpmGoal - 10), HA.class "button button-outline" ] [ text "--" ] ]
+                            , div [ HA.class "column" ] [ button [ HA.class "column", HE.onClick ChangeWord, HA.class "button button-outline" ] [ text "skip" ] ]
+                            , div [ HA.class "column" ] [ button [ HA.class "column", HE.onClick (SetGoal <| m.wpmGoal + 10), HA.class "button button-outline" ] [ text "++" ] ]
+                            , div [ HA.class "column" ] []
                             ]
-                       , div [ HA.style "position" "fixed", HA.style "bottom" "0" ] [ text "Tip: use the Esc key to reset your current word" ]
+                       , div [ HA.style "position" "fixed", HA.style "bottom" "0" ]
+                            [ text "Tip: use the Esc key to reset your current word"
+                            ]
                        ]
 
             Nothing ->
