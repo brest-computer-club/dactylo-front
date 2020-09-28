@@ -3,22 +3,21 @@ module Main exposing (main)
 import Browser
 import Browser.Events as BE
 import Char exposing (Char)
-import Helpers
+import Helpers exposing (NonEmptyList)
 import Html exposing (Html, button, div, text)
 import Html.Attributes as HA
 import Html.Events as HE
 import Http
 import Json.Decode as D
 import Random
-import Random.List as RL
 import String
 import Task
 import Time
 
 
 type alias Model =
-    { words : List String
-    , currWord : Maybe String
+    { words : NonEmptyList String
+    , currWord : String
     , typingBuf : String
     , startTime : Time.Posix
     , lastWordSpeed : Int
@@ -39,7 +38,7 @@ type TypingResult
 type Msg
     = ChangeWord
     | SetGoal Int
-    | GotNextword ( Maybe String, List String )
+    | GotNextword String
     | KeyPressed (Maybe Char)
     | StartTimer Time.Posix
     | StopTimer Time.Posix
@@ -49,8 +48,8 @@ type Msg
 
 init : ( Model, Cmd Msg )
 init =
-    ( { words = []
-      , currWord = Just "loading..."
+    ( { words = ( "", [] )
+      , currWord = "loading..."
       , typingBuf = ""
       , startTime = Time.millisToPosix 0
       , lastWordSpeed = 0
@@ -75,9 +74,9 @@ getWords =
         }
 
 
-askNewWord : List String -> Cmd Msg
+askNewWord : NonEmptyList String -> Cmd Msg
 askNewWord l =
-    Random.generate GotNextword <| RL.choose l
+    Random.generate GotNextword <| Helpers.choose l
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -93,10 +92,15 @@ update msg m =
         GetWordListResp resp ->
             case resp of
                 Ok list ->
-                    ( { m | words = List.filter (\w -> String.length w > 1) list }, askNewWord list )
+                    case List.filter (\w -> String.length w > 1) list of
+                        x :: xs ->
+                            ( { m | words = ( x, xs ) }, askNewWord ( x, xs ) )
+
+                        _ ->
+                            ( { m | currWord = "", words = ( "", [] ) }, Cmd.none )
 
                 Err _ ->
-                    ( { m | currWord = Nothing, words = [] }, Cmd.none )
+                    ( m, Cmd.none )
 
         Reset ->
             ( { m | typingBuf = "", successiveAchieved = 0, typingResult = NotStarted }, Cmd.none )
@@ -104,7 +108,7 @@ update msg m =
         ChangeWord ->
             ( m, askNewWord m.words )
 
-        GotNextword ( w, _ ) ->
+        GotNextword w ->
             ( { m | currWord = w, typingBuf = "", successiveAchieved = 0, typingResult = NotStarted }, Cmd.none )
 
         StartTimer t ->
@@ -113,24 +117,19 @@ update msg m =
         StopTimer t ->
             let
                 ( typingResult_, lastWordSpeed_ ) =
-                    case m.currWord of
-                        Just w ->
-                            let
-                                speed =
-                                    Helpers.wpm w (Time.posixToMillis t - Time.posixToMillis m.startTime)
-                            in
-                            if Helpers.checkWord w m.typingBuf then
-                                if speed >= m.wpmGoal then
-                                    ( OK, speed )
+                    let
+                        speed =
+                            Helpers.wpm m.currWord (Time.posixToMillis t - Time.posixToMillis m.startTime)
+                    in
+                    if Helpers.checkWord m.currWord m.typingBuf then
+                        if speed >= m.wpmGoal then
+                            ( OK, speed )
 
-                                else
-                                    ( TooSlow, speed )
+                        else
+                            ( TooSlow, speed )
 
-                            else
-                                ( TypingMistake, 0 )
-
-                        Nothing ->
-                            ( NotStarted, 0 )
+                    else
+                        ( TypingMistake, 0 )
 
                 successiveAchieved_ =
                     if typingResult_ == OK then
@@ -163,12 +162,7 @@ update msg m =
                             String.cons char m.typingBuf
 
                         ( isWordBeginning, isWordEnd ) =
-                            case m.currWord of
-                                Just curr ->
-                                    ( m.typingBuf == "", String.length typingBuf_ == String.length curr )
-
-                                Nothing ->
-                                    ( False, False )
+                            ( m.typingBuf == "", String.length typingBuf_ == String.length m.currWord )
 
                         tasks =
                             if isWordBeginning then
@@ -246,33 +240,28 @@ typingProgress typed goal =
 view : Model -> Html Msg
 view m =
     div [ HA.class "container" ] <|
-        case m.currWord of
-            Just w ->
-                playingView m.typingBuf w
-                    ++ [ div [ HA.class "row" ]
-                            [ div [ HA.class "column column-50 column-offset-25" ]
-                                [ div []
-                                    [ text <| "speed goal : " ++ String.fromInt m.wpmGoal
-                                    , text <| ", last speed : " ++ (String.fromInt <| m.lastWordSpeed) ++ " wpm"
-                                    ]
-                                , div [] [ text <| "achieved before next word : " ++ String.fromInt m.successiveAchieved ++ " / 3" ]
-                                , statusBar m.typingResult
-                                ]
+        playingView m.typingBuf m.currWord
+            ++ [ div [ HA.class "row" ]
+                    [ div [ HA.class "column column-50 column-offset-25" ]
+                        [ div []
+                            [ text <| "speed goal : " ++ String.fromInt m.wpmGoal
+                            , text <| ", last speed : " ++ (String.fromInt <| m.lastWordSpeed) ++ " wpm"
                             ]
-                       , div [ HA.class "row", HA.style "margin-top" "30px" ]
-                            [ div [ HA.class "column" ] []
-                            , div [ HA.class "column" ] [ button [ HA.class "column", HE.onClick (SetGoal <| m.wpmGoal - 10), HA.class "button button-outline" ] [ text "--" ] ]
-                            , div [ HA.class "column" ] [ button [ HA.class "column", HE.onClick ChangeWord, HA.class "button button-outline" ] [ text "skip" ] ]
-                            , div [ HA.class "column" ] [ button [ HA.class "column", HE.onClick (SetGoal <| m.wpmGoal + 10), HA.class "button button-outline" ] [ text "++" ] ]
-                            , div [ HA.class "column" ] []
-                            ]
-                       , div [ HA.style "position" "fixed", HA.style "bottom" "0" ]
-                            [ text "Tip: use the Esc key to reset your current word"
-                            ]
-                       ]
-
-            Nothing ->
-                [ text "" ]
+                        , div [] [ text <| "achieved before next word : " ++ String.fromInt m.successiveAchieved ++ " / 3" ]
+                        , statusBar m.typingResult
+                        ]
+                    ]
+               , div [ HA.class "row", HA.style "margin-top" "30px" ]
+                    [ div [ HA.class "column" ] []
+                    , div [ HA.class "column" ] [ button [ HA.class "column", HE.onClick (SetGoal <| m.wpmGoal - 10), HA.class "button button-outline" ] [ text "--" ] ]
+                    , div [ HA.class "column" ] [ button [ HA.class "column", HE.onClick ChangeWord, HA.class "button button-outline" ] [ text "skip" ] ]
+                    , div [ HA.class "column" ] [ button [ HA.class "column", HE.onClick (SetGoal <| m.wpmGoal + 10), HA.class "button button-outline" ] [ text "++" ] ]
+                    , div [ HA.class "column" ] []
+                    ]
+               , div [ HA.style "position" "fixed", HA.style "bottom" "0" ]
+                    [ text "Tip: use the Esc key to reset your current word"
+                    ]
+               ]
 
 
 subscriptions : Model -> Sub Msg

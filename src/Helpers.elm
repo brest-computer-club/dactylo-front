@@ -1,4 +1,6 @@
-module Helpers exposing (checkWord, wpm)
+module Helpers exposing (NonEmptyList, checkWord, choose, wpm)
+
+import Random exposing (Generator)
 
 
 checkWord : String -> String -> Bool
@@ -15,3 +17,30 @@ wpm w dur =
 
     else
         0
+
+
+type alias NonEmptyList a =
+    ( a, List a )
+
+
+get : Int -> NonEmptyList a -> a
+get index ( c, list ) =
+    let
+        picked =
+            list
+                |> List.drop index
+                |> List.head
+    in
+    case picked of
+        Just p ->
+            p
+
+        Nothing ->
+            c
+
+
+choose : NonEmptyList a -> Generator a
+choose ( h, list ) =
+    Random.map
+        (\i -> get i ( h, list ))
+        (Random.int 0 <| List.length list - 1)
