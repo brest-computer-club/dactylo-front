@@ -34,6 +34,7 @@ jobs:
           paths: 
             - index.html
             - elm.min.js
+
   deploy:
     docker:
       - image: node:8.10.0
@@ -47,6 +48,9 @@ jobs:
             npm install -g --silent gh-pages@2.2.0
             git config user.email "ci@brestcomputer.club"
             git config user.name "ci"
+      - run:
+          name: Add CNAME record (for github pages)
+          command: echo "dactylo.brestcomputer.club" > ./public/CNAME
       - add_ssh_keys:
           fingerprints:
             - "9c:c3:49:76:0a:02:af:9f:65:1b:d3:f8:10:08:4f:eb"
